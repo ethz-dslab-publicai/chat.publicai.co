@@ -20,6 +20,7 @@ import io
 import json
 from copy import deepcopy
 from datetime import datetime, timezone
+import re
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -204,12 +205,18 @@ class Action:
             print("\n\n\nSENDING CONTRIBUTION FORM TO USER\n\n\n")
             form_response = None
             try:
+                # Replace `<ENTITY_NAME>` with `==<ENTITY_NAME>==` for
+                # highlighting
+                redacted_chatlog_to_share = json.dumps(redacted_chatlog)
+                for entity in PII_ENTITIES:
+                    pattern = re.compile(r'<'+entity+r'>')
+                    redacted_chatlog_to_share = pattern.sub(r'==<' + entity + r'>==', redacted_chatlog_to_share)
                 form_response = await __event_call__(
                     {
                         "type": "data_contribution",
                         "data": {
                             "contribution_id": str(uuid4()),
-                            "redacted_chatlog": json.dumps(redacted_chatlog),
+                            "redacted_chatlog": redacted_chatlog_to_share,
                             "pii_counts_per_message": json.dumps(pii_counts_per_message),
                         }
                     }
@@ -420,8 +427,9 @@ def _redact_message_pii(
     )
     pii_counts = {str(entity): int(count) for entity, count in zip(entity_types, counts)}
 
-    return pii_counts, anon_message.text
+    anon_text = anon_message.text
 
+    return pii_counts, anon_text
 
 def create_hf_pr(
     contribution: Contribution,
